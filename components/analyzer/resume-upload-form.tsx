@@ -1,16 +1,17 @@
 /**
- * PURPOSE: Full resume upload form with paste text, Q&A pairs, role selection
- * INPUTS: None (self-contained form state)
+ * PURPOSE: Full resume upload form with PDF extraction, Q&A pairs, role selection
+ * INPUTS: Optional externalData from sample profile loader
  * OUTPUTS: Submits to /api/analyzer/score, redirects to results page on success
- * RELATIONSHIPS: Used by app/analyzer/page.tsx
+ * RELATIONSHIPS: Used by app/analyzer/page.tsx, uses resume-input-section
  */
 
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Plus, X, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react'
 import { AiLoadingStepper } from '@/components/radar/ai-loading-stepper'
+import { ResumeInputSection } from './resume-input-section'
 
 export interface FormData {
   resumeText: string
@@ -27,6 +28,7 @@ interface Props {
 
 const ROLES = ['WordPress Developer', 'Full Stack Developer', 'Frontend Developer', 'DevOps Engineer', 'Other']
 const LEVELS = ['Mid-Level', 'Senior', 'Lead', 'Manager']
+const INPUT_CLASS = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#185CE3]/30 focus:border-[#185CE3]'
 
 export function ResumeUploadForm({ externalData }: Props) {
   const router = useRouter()
@@ -41,7 +43,6 @@ export function ResumeUploadForm({ externalData }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Sync when externalData changes
   if (externalData && externalData.resumeText !== resumeText && !loading) {
     setResumeText(externalData.resumeText)
     setAnswers(externalData.answers.length ? externalData.answers : [{ question: '', answer: '' }])
@@ -60,9 +61,7 @@ export function ResumeUploadForm({ externalData }: Props) {
     if (!resumeText.trim()) return
     setLoading(true)
     setError(null)
-
     const filteredAnswers = answers.filter((a) => a.question.trim() && a.answer.trim())
-
     try {
       const res = await fetch('/api/analyzer/score', {
         method: 'POST',
@@ -83,8 +82,6 @@ export function ResumeUploadForm({ externalData }: Props) {
       setLoading(false)
     }
   }
-
-  const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#185CE3]/30 focus:border-[#185CE3]'
 
   if (loading) {
     return (
@@ -110,17 +107,26 @@ export function ResumeUploadForm({ externalData }: Props) {
         <p className="text-sm text-gray-500 mt-1">Paste or upload what you have. The more context, the smarter the analysis.</p>
       </div>
 
-      <ResumeSection resumeText={resumeText} onChange={setResumeText} inputClass={inputClass} />
+      <ResumeInputSection resumeText={resumeText} onChange={setResumeText} inputClass={INPUT_CLASS} />
 
       <OptionalSection expanded={expanded} onToggle={() => setExpanded(!expanded)}
         answers={answers} onUpdateAnswer={updateAnswer}
         onAddAnswer={() => setAnswers((p) => [...p, { question: '', answer: '' }])}
         onRemoveAnswer={(i) => setAnswers((p) => p.filter((_, idx) => idx !== i))}
-        additionalContext={additionalContext} onContextChange={setAdditionalContext}
-        inputClass={inputClass} />
+        additionalContext={additionalContext} onContextChange={setAdditionalContext} />
 
-      <RoleSection roleType={roleType} onRoleChange={setRoleType}
-        seniorityLevel={seniorityLevel} onLevelChange={setSeniorityLevel} inputClass={inputClass} />
+      <div>
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 block">What role is this for?</label>
+        <div className="grid grid-cols-2 gap-3">
+          <select value={roleType} onChange={(e) => setRoleType(e.target.value)} className={INPUT_CLASS}>
+            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select value={seniorityLevel} onChange={(e) => setSeniorityLevel(e.target.value)} className={INPUT_CLASS}>
+            {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Not sure? Leave the defaults — the AI will adjust based on what it reads.</p>
+      </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -132,25 +138,11 @@ export function ResumeUploadForm({ externalData }: Props) {
   )
 }
 
-function ResumeSection({ resumeText, onChange, inputClass }: { resumeText: string; onChange: (v: string) => void; inputClass: string }) {
-  return (
-    <div>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 block">The Resume *</label>
-      <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 mb-2 text-center text-sm text-gray-400">
-        <Upload size={20} className="mx-auto mb-1 text-gray-300" />
-        PDF upload coming soon — paste resume text below
-      </div>
-      <textarea value={resumeText} onChange={(e) => onChange(e.target.value)} rows={8}
-        className={inputClass} placeholder="Paste the candidate's resume text here..." />
-    </div>
-  )
-}
-
-function OptionalSection({ expanded, onToggle, answers, onUpdateAnswer, onAddAnswer, onRemoveAnswer, additionalContext, onContextChange, inputClass }: {
+function OptionalSection({ expanded, onToggle, answers, onUpdateAnswer, onAddAnswer, onRemoveAnswer, additionalContext, onContextChange }: {
   expanded: boolean; onToggle: () => void; answers: { question: string; answer: string }[];
   onUpdateAnswer: (i: number, f: 'question' | 'answer', v: string) => void;
   onAddAnswer: () => void; onRemoveAnswer: (i: number) => void;
-  additionalContext: string; onContextChange: (v: string) => void; inputClass: string
+  additionalContext: string; onContextChange: (v: string) => void
 }) {
   return (
     <div className="border border-gray-200 rounded-lg">
@@ -167,9 +159,9 @@ function OptionalSection({ expanded, onToggle, answers, onUpdateAnswer, onAddAns
               <div key={i} className="flex gap-2 mb-2">
                 <div className="flex-1 space-y-1">
                   <input value={a.question} onChange={(e) => onUpdateAnswer(i, 'question', e.target.value)}
-                    className={inputClass} placeholder="e.g., Why are you interested in this role?" />
+                    className={INPUT_CLASS} placeholder="e.g., Why are you interested in this role?" />
                   <textarea value={a.answer} onChange={(e) => onUpdateAnswer(i, 'answer', e.target.value)}
-                    rows={2} className={inputClass} placeholder="Candidate's response..." />
+                    rows={2} className={INPUT_CLASS} placeholder="Candidate's response..." />
                 </div>
                 {answers.length > 1 && (
                   <button type="button" onClick={() => onRemoveAnswer(i)} className="self-start p-1 text-gray-400 hover:text-red-500">
@@ -186,29 +178,10 @@ function OptionalSection({ expanded, onToggle, answers, onUpdateAnswer, onAddAns
             <p className="text-sm font-medium text-gray-700 mb-1">Anything else we should know?</p>
             <p className="text-xs text-gray-500 mb-2">Context that helps the AI score better.</p>
             <textarea value={additionalContext} onChange={(e) => onContextChange(e.target.value)}
-              rows={2} className={inputClass} placeholder="e.g., Referred by our lead developer. Has an active GitHub with 3 WordPress plugins." />
+              rows={2} className={INPUT_CLASS} placeholder="e.g., Referred by our lead developer. Has an active GitHub with 3 WordPress plugins." />
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function RoleSection({ roleType, onRoleChange, seniorityLevel, onLevelChange, inputClass }: {
-  roleType: string; onRoleChange: (v: string) => void; seniorityLevel: string; onLevelChange: (v: string) => void; inputClass: string
-}) {
-  return (
-    <div>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 block">What role is this for?</label>
-      <div className="grid grid-cols-2 gap-3">
-        <select value={roleType} onChange={(e) => onRoleChange(e.target.value)} className={inputClass}>
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={seniorityLevel} onChange={(e) => onLevelChange(e.target.value)} className={inputClass}>
-          {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
-      </div>
-      <p className="text-xs text-gray-400 mt-1">Not sure? Leave the defaults — the AI will adjust based on what it reads.</p>
     </div>
   )
 }
