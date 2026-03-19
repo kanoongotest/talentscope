@@ -1,7 +1,7 @@
 /**
- * PURPOSE: Master layout for analysis results — assembles all sub-components in scan-friendly order
+ * PURPOSE: Master layout for analysis results with methodology panel overlay
  * INPUTS: Full AnalysisRecord
- * OUTPUTS: Complete results: verdict, score, highlights, radar, dimensions, predictions, actions
+ * OUTPUTS: Verdict, score, highlights, radar, dimensions, predictions, actions
  * RELATIONSHIPS: Used by app/analyzer/[id]/page.tsx
  */
 
@@ -20,37 +20,40 @@ import { DimensionScoreCard } from './dimension-score-card'
 import { ContradictionAlerts } from './contradiction-alerts'
 import { PredictionAndRecommendations } from './prediction-and-recommendations'
 import { CopyToSlackButton } from './copy-to-slack-button'
+import { ScoringMethodologyPanel } from './scoring-methodology-panel'
 
 interface Props {
   analysis: AnalysisRecord
 }
 
 const DIMENSION_META = [
-  { key: 'technical', name: 'Technical Proficiency', weight: '25% weight' },
-  { key: 'wordpress', name: 'WordPress Expertise', weight: '25% weight' },
-  { key: 'culture', name: 'Culture & Communication', weight: '15% weight' },
-  { key: 'ai_proficiency', name: 'AI Proficiency', weight: '10% weight' },
-  { key: 'remote', name: 'Remote Readiness', weight: '10% weight' },
-  { key: 'professional', name: 'Professional Trajectory', weight: '15% weight' },
+  { key: 'technical', name: 'Technical Proficiency', weight: '25%' },
+  { key: 'wordpress', name: 'WordPress Expertise', weight: '25%' },
+  { key: 'ai_proficiency', name: 'AI Proficiency', weight: '25%' },
+  { key: 'culture', name: 'Culture & Communication', weight: '10%' },
+  { key: 'professional', name: 'Professional Trajectory', weight: '10%' },
+  { key: 'remote', name: 'Remote Readiness', weight: '5%' },
 ] as const
 
 const EXPECTATIONS: Record<string, Record<string, number>> = {
-  'Mid-Level':  { technical: 60, wordpress: 60, culture: 55, ai_proficiency: 40, remote: 55, professional: 50 },
-  'Senior':     { technical: 75, wordpress: 75, culture: 65, ai_proficiency: 55, remote: 65, professional: 65 },
-  'Lead':       { technical: 80, wordpress: 80, culture: 75, ai_proficiency: 60, remote: 70, professional: 75 },
-  'Manager':    { technical: 70, wordpress: 70, culture: 80, ai_proficiency: 55, remote: 75, professional: 80 },
+  'Mid-Level':  { technical: 60, wordpress: 60, ai_proficiency: 50, culture: 55, professional: 50, remote: 50 },
+  'Senior':     { technical: 75, wordpress: 75, ai_proficiency: 65, culture: 65, professional: 65, remote: 55 },
+  'Lead':       { technical: 80, wordpress: 80, ai_proficiency: 75, culture: 75, professional: 75, remote: 60 },
+  'Manager':    { technical: 70, wordpress: 70, ai_proficiency: 65, culture: 80, professional: 80, remote: 60 },
 }
 
 export function AnalysisResultsView({ analysis }: Props) {
   const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(false)
+  const [showMethodology, setShowMethodology] = useState(false)
 
   const agents = (analysis.agent_results || {}) as Record<string, {
     score: number; reasoning: string; confidence: string; confidence_reason: string
   }>
-  const strengths = (analysis.agent_results as Record<string, unknown>)?.strengths as string[] | undefined
-  const concerns = (analysis.agent_results as Record<string, unknown>)?.concerns as string[] | undefined
-  const verdictShort = (analysis.agent_results as Record<string, unknown>)?.verdict_short as string | undefined
+  const ar = analysis.agent_results as Record<string, unknown>
+  const strengths = (ar?.strengths as string[]) || null
+  const concerns = (ar?.concerns as string[]) || null
+  const verdictShort = (ar?.verdict_short as string) || null
 
   const hasAnswers = !!(analysis.application_answers && analysis.application_answers.length > 0)
   const expected = EXPECTATIONS[analysis.seniority_level] || EXPECTATIONS['Mid-Level']
@@ -64,21 +67,17 @@ export function AnalysisResultsView({ analysis }: Props) {
   }
 
   function toggleAll() {
-    if (allExpanded) {
-      setExpandedDims(new Set())
-    } else {
-      setExpandedDims(new Set(DIMENSION_META.map((d) => d.key)))
-    }
+    if (allExpanded) { setExpandedDims(new Set()) } else { setExpandedDims(new Set(DIMENSION_META.map((d) => d.key))) }
     setAllExpanded(!allExpanded)
   }
 
   const radarScores = {
     technical: agents.technical?.score ?? 0,
     wordpress: agents.wordpress?.score ?? 0,
-    culture: agents.culture?.score ?? 0,
     ai: agents.ai_proficiency?.score ?? 0,
-    remote: agents.remote?.score ?? 0,
+    culture: agents.culture?.score ?? 0,
     professional: agents.professional?.score ?? 0,
+    remote: agents.remote?.score ?? 0,
   }
 
   const analysisUrl = typeof window !== 'undefined' ? window.location.href : ''
@@ -89,18 +88,20 @@ export function AnalysisResultsView({ analysis }: Props) {
         ← Back to Analyzer
       </Link>
 
-      <VerdictBanner band={analysis.score_band} verdictShort={verdictShort || null} />
+      <VerdictBanner band={analysis.score_band} verdictShort={verdictShort} />
 
       <ScoreSummaryHeader
         candidateName={analysis.candidate_name} scoreTotal={analysis.score_total}
         scoreBand={analysis.score_band} executiveSummary={analysis.executive_summary}
         roleType={analysis.role_type} seniorityLevel={analysis.seniority_level}
-        createdAt={analysis.created_at} modelUsed={analysis.ai_model_used} latencyMs={analysis.latency_ms}
+        createdAt={analysis.created_at} modelUsed={analysis.ai_model_used}
+        latencyMs={analysis.latency_ms} promptVersion={analysis.prompt_version}
+        onOpenMethodology={() => setShowMethodology(true)}
       />
 
       <AnalysisConfidenceIndicator hasAnswers={hasAnswers} hasContext={!!analysis.resume_text} />
 
-      <KeyHighlights strengths={strengths || null} concerns={concerns || null} />
+      <KeyHighlights strengths={strengths} concerns={concerns} executiveSummary={analysis.executive_summary} />
 
       <div className="grid grid-cols-2 gap-4">
         <ScoreRadarChart scores={radarScores} seniorityLevel={analysis.seniority_level} band={analysis.score_band} />
@@ -132,7 +133,6 @@ export function AnalysisResultsView({ analysis }: Props) {
       </div>
 
       <ContradictionAlerts flags={analysis.contradiction_flags} />
-
       <PredictionAndRecommendations predictions={analysis.predictions} recommendations={analysis.ai_recommendations} />
 
       <div className="flex items-center gap-3">
@@ -144,10 +144,12 @@ export function AnalysisResultsView({ analysis }: Props) {
         </Link>
         <CopyToSlackButton
           candidateName={analysis.candidate_name} scoreTotal={analysis.score_total}
-          scoreBand={analysis.score_band} strengths={strengths || null}
-          concerns={concerns || null} verdictShort={verdictShort || null} analysisUrl={analysisUrl}
+          scoreBand={analysis.score_band} strengths={strengths}
+          concerns={concerns} verdictShort={verdictShort} analysisUrl={analysisUrl}
         />
       </div>
+
+      <ScoringMethodologyPanel isOpen={showMethodology} onClose={() => setShowMethodology(false)} />
     </div>
   )
 }

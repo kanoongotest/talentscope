@@ -12,13 +12,13 @@ interface Props {
 }
 
 const EXPECTATIONS: Record<string, number[]> = {
-  'Mid-Level':  [60, 60, 55, 40, 55, 50],
-  'Senior':     [75, 75, 65, 55, 65, 65],
-  'Lead':       [80, 80, 75, 60, 70, 75],
-  'Manager':    [70, 70, 80, 55, 75, 80],
+  'Mid-Level':  [60, 60, 50, 55, 50, 50],
+  'Senior':     [75, 75, 65, 65, 65, 55],
+  'Lead':       [80, 80, 75, 75, 75, 60],
+  'Manager':    [70, 70, 65, 80, 80, 60],
 }
 
-const LABELS = ['Technical', 'WordPress', 'Culture', 'AI', 'Remote', 'Professional']
+const LABELS = ['Technical', 'WordPress', 'AI', 'Culture', 'Professional', 'Remote']
 
 const BAND_FILL: Record<string, string> = {
   A: 'rgba(22,163,74,0.15)',
@@ -52,7 +52,7 @@ function scoreToPoints(values: number[]): string {
 }
 
 export function ScoreRadarChart({ scores, seniorityLevel, band }: Props) {
-  const actual = [scores.technical, scores.wordpress, scores.culture, scores.ai, scores.remote, scores.professional]
+  const actual = [scores.technical, scores.wordpress, scores.ai, scores.culture, scores.professional, scores.remote]
   const expected = EXPECTATIONS[seniorityLevel] || EXPECTATIONS['Mid-Level']
 
   const rings = [25, 50, 75, 100]

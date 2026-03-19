@@ -1,9 +1,11 @@
 /**
- * PURPOSE: Six-dimension scoring system prompt for resume analysis
- * INPUTS: Resume text, optional Q&A answers, additional context, role/seniority
+ * PURPOSE: Six-dimension scoring system prompt v2.0 with configurable weights
+ * INPUTS: Resume text, Q&A answers, context, role/seniority, weights from app_config
  * OUTPUTS: { system, user } prompt strings for OpenAI GPT-4o
  * RELATIONSHIPS: Used by app/api/analyzer/score/route.ts
  */
+
+import type { ScoringWeights } from '@/lib/queries/weights-queries'
 
 interface ScoringInput {
   resumeText: string
@@ -11,26 +13,30 @@ interface ScoringInput {
   additionalContext: string | null
   roleType: string
   seniorityLevel: string
+  weights: ScoringWeights
 }
 
-export const PROMPT_VERSION = 'analyzer-v1.1'
+export const PROMPT_VERSION = 'analyzer-v2.0'
 
 export function buildScoringPrompt(input: ScoringInput): { system: string; user: string } {
+  const w = input.weights
+  const wPct = (v: number) => `${Math.round(v * 100)}%`
+
   const system = `You are a six-agent scoring panel evaluating a candidate for a WordPress-focused company (Awesome Motive) that values AI proficiency, remote work excellence, and deep WordPress knowledge.
 
 Each agent scores one dimension (0-100). Be opinionated, not diplomatic. Reference specific items from the resume. When data is missing, lower confidence and say why — never guess.
 
-THE SIX DIMENSIONS:
-1. Technical Proficiency (25% weight) — Coding depth, architecture, debugging, tool proficiency.
-2. WordPress Expertise (25% weight) — Plugin/theme dev, hooks/filters, REST API, Gutenberg, WP-CLI, security, performance. Tier 1 employer pedigree (10up, Human Made, Automattic, etc.) is a strong signal.
-3. Culture & Communication (15% weight) — Remote indicators, async skills, writing quality from application answers, self-direction, collaboration.
-4. AI Proficiency (10% weight) — Specific AI tool usage (Claude, Cursor, Copilot, ChatGPT), AI-assisted workflows, prompt engineering. "Familiar with AI" without specifics scores low.
-5. Remote Readiness (10% weight) — Prior remote experience, timezone, home office, async evidence, self-management.
-6. Professional Trajectory (15% weight) — Career progression, stability, growth, leadership, community contributions.
+THE SIX DIMENSIONS (current weights):
+1. Technical Proficiency (${wPct(w.technical)} weight) — Coding depth, architecture, debugging, tool proficiency.
+2. WordPress Expertise (${wPct(w.wordpress)} weight) — Plugin/theme dev, hooks/filters, REST API, Gutenberg, WP-CLI, security, performance. Tier 1 employer pedigree (10up, Human Made, Automattic) is a strong signal.
+3. AI Proficiency (${wPct(w.ai)} weight) — AI Proficiency is weighted at ${wPct(w.ai)} — equal to Technical and WordPress. This is deliberate. The hiring team considers AI-native development as important as core technical skills. Look for specific AI tool mentions (Claude, Cursor, Copilot), workflow descriptions, and project examples. Generic claims like "familiar with AI" score low. Score this dimension thoroughly.
+4. Culture & Communication (${wPct(w.culture)} weight) — Remote indicators, async skills, writing quality from application answers, self-direction, collaboration.
+5. Professional Trajectory (${wPct(w.professional)} weight) — Career progression, stability, growth, leadership, community contributions.
+6. Remote Readiness (${wPct(w.remote)} weight) — Prior remote experience, timezone, home office, async evidence, self-management.
 
 SCORE BANDS: A (80-100), B (65-79), C (50-64), D (0-49)
 
-WEIGHTED TOTAL = (technical * 0.25) + (wordpress * 0.25) + (culture * 0.15) + (ai * 0.10) + (remote * 0.10) + (professional * 0.15)
+WEIGHTED TOTAL = (technical * ${w.technical}) + (wordpress * ${w.wordpress}) + (ai_proficiency * ${w.ai}) + (culture * ${w.culture}) + (professional * ${w.professional}) + (remote * ${w.remote})
 
 CONTRADICTION DETECTION — flag these:
 - Claims senior WordPress but lists no WP-specific skills
@@ -54,25 +60,22 @@ RESPONSE FORMAT — return ONLY valid JSON:
   "weighted_total": <number>,
   "band": "A|B|C|D",
   "contradiction_flags": ["<specific contradiction found>"],
-  "strengths": ["<2-3 specific, evidence-based bullet points highlighting strongest signals>"],
-  "concerns": ["<2-3 specific bullet points highlighting gaps, red flags, or contradictions>"],
-  "executive_summary": "<2-3 sharp, opinionated sentences. Tell the recruiter exactly what they need to know.>",
-  "verdict_short": "<One decisive sentence for Slack sharing. E.g., 'Strong WordPress technician with AI gap — worth interviewing with targeted follow-up.'>",
+  "strengths": ["<2-3 specific, evidence-based bullet points>"],
+  "concerns": ["<2-3 specific bullet points about gaps or red flags>"],
+  "executive_summary": "<2-3 sharp, opinionated sentences>",
+  "verdict_short": "<One decisive sentence for Slack. Opinionated.>",
   "predictions": "<1-2 sentences on what to expect in interviews>",
   "recommendations": "<2-3 specific next steps>"
 }
 
-RULES FOR strengths/concerns:
-- Each item must be specific and reference actual evidence from the resume
-- strengths: What makes this candidate worth interviewing? Concrete signals, not generic praise
-- concerns: What gaps, risks, or red flags exist? Honest and direct, not softened
-
-Generic web developers without WordPress depth should score lower on wordpress. Every sentence must inform a decision.`
+RULES:
+- Be opinionated in strengths and concerns. Reference specific evidence. Never say "the candidate shows promise" — say "built 3 Gutenberg blocks at 10up, a Tier 1 agency".
+- verdict_short must be one sentence a recruiter can paste into Slack. The single most important thing to know.
+- Generic web developers without WordPress depth should score lower on wordpress.
+- Every sentence must inform a decision.`
 
   const qaPart = input.applicationAnswers?.length
-    ? input.applicationAnswers
-        .map((qa, i) => `Q${i + 1}: ${qa.question}\nA${i + 1}: ${qa.answer}`)
-        .join('\n\n')
+    ? input.applicationAnswers.map((qa, i) => `Q${i + 1}: ${qa.question}\nA${i + 1}: ${qa.answer}`).join('\n\n')
     : 'No application answers provided.'
 
   const user = `Score this candidate for a ${input.seniorityLevel} ${input.roleType} role.

@@ -10,10 +10,14 @@ import { ThumbsUp, AlertCircle } from 'lucide-react'
 interface Props {
   strengths: string[] | null
   concerns: string[] | null
+  executiveSummary?: string
 }
 
-export function KeyHighlights({ strengths, concerns }: Props) {
-  if ((!strengths || strengths.length === 0) && (!concerns || concerns.length === 0)) {
+export function KeyHighlights({ strengths, concerns, executiveSummary }: Props) {
+  const hasStrengths = strengths && strengths.length > 0
+  const hasConcerns = concerns && concerns.length > 0
+
+  if (!hasStrengths && !hasConcerns && !executiveSummary) {
     return null
   }
 

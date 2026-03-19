@@ -1,14 +1,15 @@
 /**
- * PURPOSE: POST endpoint to run six-dimension AI resume analysis
+ * PURPOSE: POST endpoint to run six-dimension AI resume analysis with configurable weights
  * INPUTS: JSON body with resume_text, application_answers, additional_context, role_type, seniority_level
  * OUTPUTS: Created analysis record with full AI scoring results
- * RELATIONSHIPS: Uses analyzer-scoring-prompt, openai-client, analysis-queries
+ * RELATIONSHIPS: Uses analyzer-scoring-prompt, openai-client, analysis-queries, weights-queries
  */
 
 import { NextResponse } from 'next/server'
 import { openai, AI_MODEL_PRIMARY } from '@/lib/openai-client'
 import { buildScoringPrompt, PROMPT_VERSION } from '@/lib/prompts/analyzer-scoring-prompt'
 import { createAnalysis } from '@/lib/queries/analysis-queries'
+import { fetchScoringWeights } from '@/lib/queries/weights-queries'
 
 export async function POST(request: Request) {
   const body = await request.json()
@@ -18,12 +19,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'resume_text is required' }, { status: 400 })
   }
 
+  const weights = await fetchScoringWeights()
+
   const { system, user } = buildScoringPrompt({
     resumeText: resume_text,
     applicationAnswers: application_answers || null,
     additionalContext: additional_context || null,
     roleType: role_type || 'WordPress Developer',
     seniorityLevel: seniority_level || 'Mid-Level',
+    weights,
   })
 
   const startTime = Date.now()
@@ -59,6 +63,16 @@ export async function POST(request: Request) {
       }])
     )
 
+    // Recalculate weighted total server-side with actual weights
+    const serverTotal =
+      (d.technical?.score ?? 0) * weights.technical +
+      (d.wordpress?.score ?? 0) * weights.wordpress +
+      (d.ai_proficiency?.score ?? 0) * weights.ai +
+      (d.culture?.score ?? 0) * weights.culture +
+      (d.professional?.score ?? 0) * weights.professional +
+      (d.remote?.score ?? 0) * weights.remote
+    const band = serverTotal >= 80 ? 'A' : serverTotal >= 65 ? 'B' : serverTotal >= 50 ? 'C' : 'D'
+
     const analysis = await createAnalysis({
       candidate_name: result.candidate_name || 'Unknown',
       resume_text,
@@ -71,13 +85,14 @@ export async function POST(request: Request) {
       score_ai: d.ai_proficiency?.score ?? 0,
       score_remote: d.remote?.score ?? 0,
       score_professional: d.professional?.score ?? 0,
-      score_total: result.weighted_total ?? 0,
-      score_band: result.band || 'D',
+      score_total: serverTotal,
+      score_band: band,
       agent_results: {
         ...d,
         strengths: result.strengths || [],
         concerns: result.concerns || [],
         verdict_short: result.verdict_short || '',
+        weights_used: weights,
       },
       contradiction_flags: result.contradiction_flags || [],
       confidence_levels: confidenceLevels,
@@ -92,10 +107,9 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({
-      id: analysis.id,
-      ...result,
-      latency_ms: latencyMs,
-      model_used: AI_MODEL_PRIMARY,
+      id: analysis.id, ...result,
+      weighted_total: serverTotal, band,
+      latency_ms: latencyMs, model_used: AI_MODEL_PRIMARY,
     }, { status: 201 })
   } catch (err) {
     console.error('Analyzer scoring API error:', err)

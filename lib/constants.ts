@@ -22,7 +22,7 @@ export const MODULE_DESCRIPTIONS: Record<string, { description: string; phase: n
 }
 
 export const BOTTOM_NAV = [
-  { name: 'Settings', icon: 'Settings', comingSoon: true },
+  { name: 'Settings', icon: 'Settings', comingSoon: false, href: '/settings' },
   { name: 'Help', icon: 'HelpCircle', comingSoon: true },
 ] as const
 

@@ -56,6 +56,23 @@ export function SidebarNavigation() {
 
         {BOTTOM_NAV.map((item) => {
           const Icon = ICON_MAP[item.icon]
+          if (!item.comingSoon && 'href' in item && item.href) {
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-3 rounded px-3 py-2 text-[13px] transition-colors ${
+                  isActive
+                    ? 'border-l-[3px] border-[#185CE3] bg-[rgba(24,92,227,0.25)] text-white font-medium'
+                    : 'text-white/65 hover:bg-white/[0.06] hover:text-white'
+                }`}
+              >
+                {Icon && <Icon size={18} />}
+                <span>{item.name}</span>
+              </Link>
+            )
+          }
           return (
             <div
               key={item.name}
