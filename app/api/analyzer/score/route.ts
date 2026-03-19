@@ -53,7 +53,10 @@ export async function POST(request: Request) {
 
     const d = result.dimensions || {}
     const confidenceLevels = Object.fromEntries(
-      Object.entries(d).map(([k, v]) => [k, { confidence: (v as Record<string, string>).confidence, reason: (v as Record<string, string>).confidence_reason }])
+      Object.entries(d).map(([k, v]) => [k, {
+        confidence: (v as Record<string, string>).confidence,
+        reason: (v as Record<string, string>).confidence_reason,
+      }])
     )
 
     const analysis = await createAnalysis({
@@ -70,7 +73,12 @@ export async function POST(request: Request) {
       score_professional: d.professional?.score ?? 0,
       score_total: result.weighted_total ?? 0,
       score_band: result.band || 'D',
-      agent_results: d,
+      agent_results: {
+        ...d,
+        strengths: result.strengths || [],
+        concerns: result.concerns || [],
+        verdict_short: result.verdict_short || '',
+      },
       contradiction_flags: result.contradiction_flags || [],
       confidence_levels: confidenceLevels,
       executive_summary: result.executive_summary || '',
@@ -83,7 +91,12 @@ export async function POST(request: Request) {
       is_sample: false,
     })
 
-    return NextResponse.json({ id: analysis.id, ...result, latency_ms: latencyMs, model_used: AI_MODEL_PRIMARY }, { status: 201 })
+    return NextResponse.json({
+      id: analysis.id,
+      ...result,
+      latency_ms: latencyMs,
+      model_used: AI_MODEL_PRIMARY,
+    }, { status: 201 })
   } catch (err) {
     console.error('Analyzer scoring API error:', err)
     const message = err instanceof Error ? err.message : 'AI request failed'

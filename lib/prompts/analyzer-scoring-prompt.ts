@@ -13,7 +13,7 @@ interface ScoringInput {
   seniorityLevel: string
 }
 
-export const PROMPT_VERSION = 'analyzer-v1.0'
+export const PROMPT_VERSION = 'analyzer-v1.1'
 
 export function buildScoringPrompt(input: ScoringInput): { system: string; user: string } {
   const system = `You are a six-agent scoring panel evaluating a candidate for a WordPress-focused company (Awesome Motive) that values AI proficiency, remote work excellence, and deep WordPress knowledge.
@@ -30,7 +30,7 @@ THE SIX DIMENSIONS:
 
 SCORE BANDS: A (80-100), B (65-79), C (50-64), D (0-49)
 
-WEIGHTED TOTAL = (technical × 0.25) + (wordpress × 0.25) + (culture × 0.15) + (ai × 0.10) + (remote × 0.10) + (professional × 0.15)
+WEIGHTED TOTAL = (technical * 0.25) + (wordpress * 0.25) + (culture * 0.15) + (ai * 0.10) + (remote * 0.10) + (professional * 0.15)
 
 CONTRADICTION DETECTION — flag these:
 - Claims senior WordPress but lists no WP-specific skills
@@ -54,10 +54,18 @@ RESPONSE FORMAT — return ONLY valid JSON:
   "weighted_total": <number>,
   "band": "A|B|C|D",
   "contradiction_flags": ["<specific contradiction found>"],
+  "strengths": ["<2-3 specific, evidence-based bullet points highlighting strongest signals>"],
+  "concerns": ["<2-3 specific bullet points highlighting gaps, red flags, or contradictions>"],
   "executive_summary": "<2-3 sharp, opinionated sentences. Tell the recruiter exactly what they need to know.>",
+  "verdict_short": "<One decisive sentence for Slack sharing. E.g., 'Strong WordPress technician with AI gap — worth interviewing with targeted follow-up.'>",
   "predictions": "<1-2 sentences on what to expect in interviews>",
   "recommendations": "<2-3 specific next steps>"
 }
+
+RULES FOR strengths/concerns:
+- Each item must be specific and reference actual evidence from the resume
+- strengths: What makes this candidate worth interviewing? Concrete signals, not generic praise
+- concerns: What gaps, risks, or red flags exist? Honest and direct, not softened
 
 Generic web developers without WordPress depth should score lower on wordpress. Every sentence must inform a decision.`
 
