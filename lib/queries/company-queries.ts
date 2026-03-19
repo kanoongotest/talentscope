@@ -107,6 +107,36 @@ export async function fetchCompanyStats() {
   return { total: total || 0, tierCounts }
 }
 
+export async function updateCompanyBleedScore(
+  id: string,
+  data: {
+    bleed_score: number
+    bleed_score_reasoning: string
+    bleed_score_confidence: string
+    bleed_score_updated_at: string
+  }
+) {
+  const { error } = await supabase
+    .from('companies')
+    .update(data)
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+export async function updateCompanyField(
+  id: string,
+  field: string,
+  value: string | number | null
+) {
+  const { error } = await supabase
+    .from('companies')
+    .update({ [field]: value, updated_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
 export async function fetchFilterOptions() {
   const [catRes, regRes] = await Promise.all([
     supabase.from('companies').select('category').not('category', 'is', null),
